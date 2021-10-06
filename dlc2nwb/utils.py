@@ -47,52 +47,54 @@ def convert_h5_to_nwb(config, h5file):
         temp = pd.concat({"ind1": df}, names=["individuals"], axis=1)
         df = temp.reorder_levels(["scorer", "individuals", "bodyparts", "coords"], axis=1)
 
-    pose_estimation_series = []
-    for (animal, kpt), df_ in df.groupby(level=["individuals", "bodyparts"], axis=1, sort=False):
-        xyp = df_.to_numpy()
-        timestamps = df.index.tolist()
-        pes = PoseEstimationSeries(
-            name=f"{animal}_{kpt}",
-            description=f"Keypoint {kpt} from individual {animal}.",
-            data=xyp[:, :2],
-            unit="pixels",
-            reference_frame="(0,0) corresponds to the bottom left corner of the video.",
-            timestamps=timestamps,
-            confidence=xyp[:, 2],
-            confidence_definition="Softmax output of the deep neural network.",
+    output_paths = []
+    for animal, df_ in df.groupby(level="individuals", axis=1):
+        pose_estimation_series = []
+        for kpt, xyp in df_.groupby(level="bodyparts", axis=1, sort=False):
+            data = xyp.to_numpy()
+            timestamps = df.index.tolist()
+            pes = PoseEstimationSeries(
+                name=f"{animal}_{kpt}",
+                description=f"Keypoint {kpt} from individual {animal}.",
+                data=data[:, :2],
+                unit="pixels",
+                reference_frame="(0,0) corresponds to the bottom left corner of the video.",
+                timestamps=timestamps,
+                confidence=data[:, 2],
+                confidence_definition="Softmax output of the deep neural network.",
+            )
+            pose_estimation_series.append(pes)
+
+        pe = PoseEstimation(
+            pose_estimation_series=pose_estimation_series,
+            description="2D keypoint coordinates estimated using DeepLabCut.",
+            original_videos=[video[0]],
+            dimensions=[list(map(int, video[1].split(",")))[1::2]],
+            scorer=scorer,
+            source_software="DeepLabCut",
+            source_software_version=__version__,
+            nodes=[pes.name for pes in pose_estimation_series],
         )
-        pose_estimation_series.append(pes)
 
-    # TODO Figure out how to add separate animals' PoseEstimation to the processing module
-    pe = PoseEstimation(
-        pose_estimation_series=pose_estimation_series,
-        description="2D keypoint coordinates estimated using DeepLabCut.",
-        original_videos=[video[0]],
-        dimensions=[list(map(int, video[1].split(",")))[1::2]],
-        scorer=scorer,
-        source_software="DeepLabCut",
-        source_software_version=__version__,
-        nodes=[pes.name for pes in pose_estimation_series],
-    )
+        nwbfile = NWBFile(
+            session_description=cfg["Task"],
+            experimenter=cfg["scorer"],
+            identifier=scorer,
+            session_start_time=datetime.datetime.now(datetime.timezone.utc),
+        )
+        # TODO Store the test_pose_config as well?
+        behavior_pm = nwbfile.create_processing_module(
+            name="behavior",
+            description="processed behavioral data"
+        )
+        behavior_pm.add(pe)
+        output_path = h5file.replace(".h5", f"_{animal}.nwb")
+        with warnings.catch_warnings(), NWBHDF5IO(output_path, mode="w") as io:
+            warnings.filterwarnings("ignore", category=DtypeConversionWarning)
+            io.write(nwbfile)
+        output_paths.append(output_path)
 
-    nwbfile = NWBFile(
-        session_description=cfg["Task"],
-        experimenter=cfg["scorer"],
-        identifier=scorer,
-        session_start_time=datetime.datetime.now(datetime.timezone.utc),
-    )
-    # TODO Store the test_pose_config as well?
-    behavior_pm = nwbfile.create_processing_module(
-        name="behavior",
-        description="processed behavioral data"
-    )
-    behavior_pm.add(pe)
-    output_path = h5file.replace(".h5", ".nwb")
-    with warnings.catch_warnings(), NWBHDF5IO(output_path, mode="w") as io:
-        warnings.filterwarnings("ignore", category=DtypeConversionWarning)
-        io.write(nwbfile)
-
-    return output_path
+    return output_paths
 
 
 def convert_nwb_to_h5(nwbfile):
