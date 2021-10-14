@@ -1,10 +1,10 @@
 # Welcome to the DeepLabCut 2 Neurodata Without Borders Repo
 
-Here we provide utilities to convert DeepLabCut (DLC), output to/from Neurodata Without Borders (NWB) format. This repository also elaborates a way for how pose estimation data should be represented in NWB. Currently this is in alpha mode!
+Here we provide utilities to convert DeepLabCut (DLC) output to/from Neurodata Without Borders (NWB) format. This repository also elaborates a way for how pose estimation data should be represented in NWB. 
 
-Specifically, this package allows you to store DLC's predictions on videos (*.h5 files) into NWB format. 
+Currently this is in alpha mode!
 
-This is best explained with an example
+Specifically, this package allows you to convert DLC's predictions on videos (*.h5 files) into NWB format. This is best explained with an example
 
 # Example use:
 
@@ -44,7 +44,7 @@ Once we are happy with this converter, we will integrate the functionality in DL
 - put this code on pypi
 - put [ndx-pose](https://github.com/rly/ndx-pose) on pypi
 - make it a dependency of DeepLabCut
-- add an argument to [`deeplabcut.predict_videos(,export2NWB=True)`](https://github.com/DeepLabCut/DeepLabCut/blob/master/deeplabcut/pose_estimation_tensorflow/predict_videos.py#L42), that will *also* export the video predictions in the NWB format (on top of native DLC).
+- add an argument to [`deeplabcut.predict_videos(....,export2NWB=True)`](https://github.com/DeepLabCut/DeepLabCut/blob/master/deeplabcut/pose_estimation_tensorflow/predict_videos.py#L42), that will *also* export the video predictions in the NWB format (on top of native DLC).
 
 
 # Funding and contributions:
