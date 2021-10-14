@@ -4,7 +4,7 @@ Here we provide utilities to convert DeepLabCut (DLC) output to/from Neurodata W
 
 Currently this is in alpha mode!
 
-Specifically, this package allows you to convert DLC's predictions on videos (*.h5 files) into NWB format. This is best explained with an example
+Specifically, this package allows you to convert [DLC's predictions on videos (*.h5 files)](https://github.com/DeepLabCut/DLC2NWB/blob/main/examples/README.md) into NWB format. This is best explained with an example
 
 # Example use:
 
