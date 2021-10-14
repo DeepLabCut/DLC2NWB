@@ -10,9 +10,10 @@ from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
-def convert_h5_to_nwb(config, h5file):
+def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     """
-    Convert a DeepLabCut h5 data file to NWB.
+    Convert a DeepLabCut (DLC) video prediction, h5 data file to Neurodata Without Borders (NWB). Also
+    takes project config, to store relevant metadata.
 
     Parameters
     ----------
@@ -22,10 +23,16 @@ def convert_h5_to_nwb(config, h5file):
     h5file : str
         Path to a h5 data file
 
+    individual_name: str
+        Name of the subject (whose pose is predicted) for single-animal  DLC project.
+        For multi-animal projects, the names from the DLC project will be used directly.
+
+    TODO: allow one to overwrite those names, with a mapping?
+
     Returns
     -------
     str
-        Path to the newly created NWB data file
+        Path to the newly created NWB data file. By default the file is stored in the same folder as the h5file.
 
     """
     cfg = auxiliaryfunctions.read_config(config)
@@ -43,8 +50,9 @@ def convert_h5_to_nwb(config, h5file):
 
     df = pd.read_hdf(h5file)
     if "individuals" not in df.columns.names:
-        # Add a fake individual row to the header of single animal projects
-        temp = pd.concat({"ind1": df}, names=["individuals"], axis=1)
+        # Single animal project -> add individual row to the header
+        # of single animal projects. The animal/individual name can be specified.
+        temp = pd.concat({individual_name: df}, names=["individuals"], axis=1)
         df = temp.reorder_levels(["scorer", "individuals", "bodyparts", "coords"], axis=1)
 
     output_paths = []
@@ -82,6 +90,7 @@ def convert_h5_to_nwb(config, h5file):
             identifier=scorer,
             session_start_time=datetime.datetime.now(datetime.timezone.utc),
         )
+
         # TODO Store the test_pose_config as well?
         behavior_pm = nwbfile.create_processing_module(
             name="behavior",
@@ -97,8 +106,21 @@ def convert_h5_to_nwb(config, h5file):
     return output_paths
 
 
-def convert_nwb_to_h5(nwbfile):
-    """Convert a NWB data file back to DeepLabCut's h5 data format."""
+def convert_nwb_to_h5(nwbfile,return_df=True):
+    """
+    Convert a NWB data file back to DeepLabCut's h5 data format.
+
+    Parameters
+    ----------
+    nwbfile : str
+        Path to the newly created NWB data file
+
+    Returns
+    -------
+    df : pandas.array
+        Pandas multi-column array containing predictions in DLC format.
+
+    """
     with NWBHDF5IO(nwbfile, mode="r", load_namespaces=True) as io:
         read_nwbfile = io.read()
         read_pe = read_nwbfile.processing["behavior"]["PoseEstimation"]
@@ -112,4 +134,5 @@ def convert_nwb_to_h5(nwbfile):
                 [[scorer], [animal], [kpt], ["x", "y", "likelihood"]],
             )
             dfs.append(pd.DataFrame(array, np.asarray(pes.timestamps).astype(int), cols))
+
     return pd.concat(dfs, axis=1)
