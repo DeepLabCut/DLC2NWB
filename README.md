@@ -52,4 +52,4 @@ Once we are happy with this converter, we will integrate the functionality in DL
 We gratefully acknowledge the generous support from the [Kavli Foundation](https://kavlifoundation.org/) via a [Kavli Neurodata Without Borders Seed Grants
 ](https://www.nwb.org/nwb-seed-grants/).
 
-We furthermore acknowledge feedback and discussions with [Ben Dichter, Ryan Li and Olviver Ruebel](https://www.nwb.org/team/).
+We furthermore acknowledge feedback and discussions with [Ben Dichter, Ryan Ly and Oliver Ruebel](https://www.nwb.org/team/).
