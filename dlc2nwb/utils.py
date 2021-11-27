@@ -10,6 +10,41 @@ from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
+def get_movie_timestamps(movie_file, VARIABILITYBOUND=100):
+    """
+    Return numpy array of the timestamps for a video.
+
+    Parameters
+    ----------
+    movie_file : str
+        Path to movie_file
+
+    """
+    # TODO: consider moving this to DLC, and actually extract alongside video analysis!
+
+    import cv2
+
+    cap = cv2.VideoCapture(str(movie_file))
+    if not self.video.isOpened():
+        raise IOError("Video could not be opened; it may be corrupted.")
+    else:
+        timestamps = [cap.get(cv2.CAP_PROP_POS_MSEC)]
+        success, frame = cap.read()
+        while success:
+            timestamps.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+            success, frame = cap.read()
+        if (
+            np.nanvar(np.diff(timestamps))
+            < 1.0 / vid.get(cv2.CAP_PROP_FPS) * 1.0 / VARIABILITYBOUND
+        ):
+            print(
+                "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
+            )
+        cap.release()
+
+        return np.array(timestamps)
+
+
 def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     """
     Convert a DeepLabCut (DLC) video prediction, h5 data file to Neurodata Without Borders (NWB). Also
@@ -40,27 +75,39 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     vidname, scorer = os.path.split(h5file)[-1].split("DLC")
     scorer = "DLC" + scorer.rsplit("_", 1)[0]
     video = None
+
+    df = pd.read_hdf(h5file)
+
     for video_path, params in cfg["video_sets"].items():
         if vidname in video_path:
             video = video_path, params["crop"]
             break
+
     if video is None:
         warnings.warn(f"The video file corresponding to {h5file} could not be found...")
         video = "fake_path", "0, 0, 0, 0"
 
-    df = pd.read_hdf(h5file)
+        timestamps = (
+            df.index.tolist()
+        )  # setting timestamps to dummy TODO: extract timestamps in DLC?
+    else:
+        # getting timestamps:
+        timestamps = get_movie_timestamps(video)
+
     if "individuals" not in df.columns.names:
         # Single animal project -> add individual row to the header
         # of single animal projects. The animal/individual name can be specified.
         temp = pd.concat({individual_name: df}, names=["individuals"], axis=1)
-        df = temp.reorder_levels(["scorer", "individuals", "bodyparts", "coords"], axis=1)
+        df = temp.reorder_levels(
+            ["scorer", "individuals", "bodyparts", "coords"], axis=1
+        )
 
     output_paths = []
     for animal, df_ in df.groupby(level="individuals", axis=1):
         pose_estimation_series = []
         for kpt, xyp in df_.groupby(level="bodyparts", axis=1, sort=False):
             data = xyp.to_numpy()
-            timestamps = df.index.tolist()
+
             pes = PoseEstimationSeries(
                 name=f"{animal}_{kpt}",
                 description=f"Keypoint {kpt} from individual {animal}.",
@@ -93,8 +140,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
 
         # TODO Store the test_pose_config as well?
         behavior_pm = nwbfile.create_processing_module(
-            name="behavior",
-            description="processed behavioral data"
+            name="behavior", description="processed behavioral data"
         )
         behavior_pm.add(pe)
         output_path = h5file.replace(".h5", f"_{animal}.nwb")
@@ -106,7 +152,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     return output_paths
 
 
-def convert_nwb_to_h5(nwbfile,return_df=True):
+def convert_nwb_to_h5(nwbfile, return_df=True):
     """
     Convert a NWB data file back to DeepLabCut's h5 data format.
 
@@ -133,6 +179,8 @@ def convert_nwb_to_h5(nwbfile,return_df=True):
             cols = pd.MultiIndex.from_product(
                 [[scorer], [animal], [kpt], ["x", "y", "likelihood"]],
             )
-            dfs.append(pd.DataFrame(array, np.asarray(pes.timestamps).astype(int), cols))
+            dfs.append(
+                pd.DataFrame(array, np.asarray(pes.timestamps).astype(int), cols)
+            )
 
     return pd.concat(dfs, axis=1)
