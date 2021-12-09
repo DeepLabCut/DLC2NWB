@@ -12,7 +12,7 @@ from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
-def get_movie_timestamps(movie_file):
+def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
     """
     Return numpy array of the timestamps for a video.
 
@@ -28,7 +28,18 @@ def get_movie_timestamps(movie_file):
     for _ in range(len(reader)):
         _ = reader.read_frame()
         timestamps.append(reader.video.get(cv2.CAP_PROP_POS_MSEC))
-    return np.array(timestamps) / 1000  # Convert to seconds
+
+    timestamps = np.array(timestamps) / 1000  # Convert to seconds
+
+    if (
+        np.nanvar(np.diff(timestamps))
+        < 1.0 / vid.get(cv2.CAP_PROP_FPS) * 1.0 / VARIABILITYBOUND
+    ):
+        print(
+            "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
+        )
+
+    return timestamps
 
 
 def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
