@@ -1,3 +1,4 @@
+import cv2
 import datetime
 import os
 import numpy as np
@@ -5,12 +6,13 @@ import pandas as pd
 import warnings
 from deeplabcut import __version__
 from deeplabcut.utils import auxiliaryfunctions
+from deeplabcut.utils.auxfun_videos import VideoReader
 from hdmf.build.warnings import DtypeConversionWarning
 from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
 
 
-def get_movie_timestamps(movie_file, VARIABILITYBOUND=100):
+def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
     """
     Return numpy array of the timestamps for a video.
 
@@ -18,31 +20,26 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=100):
     ----------
     movie_file : str
         Path to movie_file
-
     """
     # TODO: consider moving this to DLC, and actually extract alongside video analysis!
 
-    import cv2
+    reader = VideoReader(movie_file)
+    timestamps = []
+    for _ in range(len(reader)):
+        _ = reader.read_frame()
+        timestamps.append(reader.video.get(cv2.CAP_PROP_POS_MSEC))
 
-    cap = cv2.VideoCapture(str(movie_file))
-    if not self.video.isOpened():
-        raise IOError("Video could not be opened; it may be corrupted.")
-    else:
-        timestamps = [cap.get(cv2.CAP_PROP_POS_MSEC)]
-        success, frame = cap.read()
-        while success:
-            timestamps.append(cap.get(cv2.CAP_PROP_POS_MSEC))
-            success, frame = cap.read()
-        if (
-            np.nanvar(np.diff(timestamps))
-            < 1.0 / vid.get(cv2.CAP_PROP_FPS) * 1.0 / VARIABILITYBOUND
-        ):
-            print(
-                "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
-            )
-        cap.release()
+    timestamps = np.array(timestamps) / 1000  # Convert to seconds
 
-        return np.array(timestamps)
+    if (
+        np.nanvar(np.diff(timestamps))
+        < 1.0 / vid.get(cv2.CAP_PROP_FPS) * 1.0 / VARIABILITYBOUND
+    ):
+        print(
+            "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
+        )
+
+    return timestamps
 
 
 def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
@@ -91,7 +88,6 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
             df.index.tolist()
         )  # setting timestamps to dummy TODO: extract timestamps in DLC?
     else:
-        # getting timestamps:
         timestamps = get_movie_timestamps(video)
 
     if "individuals" not in df.columns.names:
@@ -152,7 +148,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     return output_paths
 
 
-def convert_nwb_to_h5(nwbfile, return_df=True):
+def convert_nwb_to_h5(nwbfile):
     """
     Convert a NWB data file back to DeepLabCut's h5 data format.
 
@@ -182,5 +178,6 @@ def convert_nwb_to_h5(nwbfile, return_df=True):
             dfs.append(
                 pd.DataFrame(array, np.asarray(pes.timestamps).astype(int), cols)
             )
-
-    return pd.concat(dfs, axis=1)
+    df = pd.concat(dfs, axis=1)
+    df.to_hdf(nwbfile.replace(".nwb", ".h5"), key="poses")
+    return df
