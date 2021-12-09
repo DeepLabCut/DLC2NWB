@@ -3,6 +3,7 @@ import datetime
 import os
 import numpy as np
 import pandas as pd
+import pickle
 import warnings
 from deeplabcut import __version__
 from deeplabcut.utils import auxiliaryfunctions
@@ -55,7 +56,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     h5file : str
         Path to a h5 data file
 
-    individual_name: str
+    individual_name : str
         Name of the subject (whose pose is predicted) for single-animal  DLC project.
         For multi-animal projects, the names from the DLC project will be used directly.
 
@@ -74,6 +75,27 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     video = None
 
     df = pd.read_hdf(h5file)
+
+    # Fetch the corresponding metadata pickle file
+    paf_graph = []
+    filename, _ = os.path.splitext(h5file)
+    for i, c in enumerate(filename[::-1]):
+        if c.isnumeric():
+            break
+    if i > 0:
+        filename = filename[:-i]
+    metadata_file = filename + "_meta.pickle"
+    if os.path.isfile(metadata_file):
+        with open(metadata_file, "rb") as file:
+            metadata = pickle.load(file)
+        test_cfg = metadata["data"]['DLC-model-config file']
+        paf_graph = test_cfg.get("partaffinityfield_graph", [])
+        if paf_graph:
+            paf_inds = test_cfg.get("paf_best")
+            if paf_inds is not None:
+                paf_graph = [paf_graph[i] for i in paf_inds]
+    else:
+        warnings.warn("Metadata not found...")
 
     for video_path, params in cfg["video_sets"].items():
         if vidname in video_path:
@@ -125,6 +147,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
             source_software="DeepLabCut",
             source_software_version=__version__,
             nodes=[pes.name for pes in pose_estimation_series],
+            edges=paf_graph,
         )
 
         nwbfile = NWBFile(
