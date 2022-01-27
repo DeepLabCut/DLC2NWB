@@ -2,7 +2,7 @@
 
 Here we provide utilities to convert DeepLabCut (DLC) output to/from Neurodata Without Borders (NWB) format. This repository also elaborates a way for how pose estimation data should be represented in NWB.
 
-Specifically, this package allows you to convert DLC's predictions on videos (*.h5 files) into NWB format. This is best explained with an [example](# Example).
+Specifically, this package allows you to convert DLC's predictions on videos (*.h5 files) into NWB format. This is best explained with an [example](https://github.com/DeepLabCut/DLC2NWB/# Example use case:)!
 
 # NWB pose ontology
 
@@ -14,7 +14,7 @@ Simply do (it only depends on `ndx-pose` and `deeplabcut`):
 
 `pip install dlc2nwb`
 
-# Example
+# Example use case:
 
 Here is an example for converting DLC data to NWB format (and back). Notice you can also export your data directly from DeepLabCut. This will be further documented, and is currently in this [branch](https://github.com/DeepLabCut/DeepLabCut/tree/nwb)!
 
