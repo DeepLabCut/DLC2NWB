@@ -34,13 +34,24 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
 
     if (
         np.nanvar(np.diff(timestamps))
-        < 1.0 / vid.get(cv2.CAP_PROP_FPS) * 1.0 / VARIABILITYBOUND
+        < 1.0 / reader.fps * 1.0 / VARIABILITYBOUND
     ):
-        print(
+        warnings.warn(
             "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
         )
 
     return timestamps
+
+
+def _ensure_individuals_in_header(df, dummy_name):
+    if "individuals" not in df.columns.names:
+        # Single animal project -> add individual row to
+        # the header of single animal projects.
+        temp = pd.concat({dummy_name: df}, names=["individuals"], axis=1)
+        df = temp.reorder_levels(
+            ["scorer", "individuals", "bodyparts", "coords"], axis=1
+        )
+    return df
 
 
 def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
@@ -57,24 +68,30 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         Path to a h5 data file
 
     individual_name : str
-        Name of the subject (whose pose is predicted) for single-animal  DLC project.
+        Name of the subject (whose pose is predicted) for single-animal DLC project.
         For multi-animal projects, the names from the DLC project will be used directly.
 
     TODO: allow one to overwrite those names, with a mapping?
 
     Returns
     -------
-    str
-        Path to the newly created NWB data file. By default the file is stored in the same folder as the h5file.
+    list of str
+        List of paths to the newly created NWB data files.
+        By default NWB files are stored in the same folder as the h5file.
 
     """
+    if "DLC" not in h5file or not h5file.endswith(".h5"):
+        raise IOError(
+            "The file passed in is not a DeepLabCut h5 data file."
+        )
+
     cfg = auxiliaryfunctions.read_config(config)
 
     vidname, scorer = os.path.split(h5file)[-1].split("DLC")
-    scorer = "DLC" + scorer.rsplit("_", 1)[0]
+    scorer = "DLC" + os.path.splitext(scorer)[0]
     video = None
 
-    df = pd.read_hdf(h5file)
+    df = _ensure_individuals_in_header(pd.read_hdf(h5file), individual_name)
 
     # Fetch the corresponding metadata pickle file
     paf_graph = []
@@ -111,14 +128,6 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         )  # setting timestamps to dummy TODO: extract timestamps in DLC?
     else:
         timestamps = get_movie_timestamps(video)
-
-    if "individuals" not in df.columns.names:
-        # Single animal project -> add individual row to the header
-        # of single animal projects. The animal/individual name can be specified.
-        temp = pd.concat({individual_name: df}, names=["individuals"], axis=1)
-        df = temp.reorder_levels(
-            ["scorer", "individuals", "bodyparts", "coords"], axis=1
-        )
 
     output_paths = []
     for animal, df_ in df.groupby(level="individuals", axis=1):
@@ -197,6 +206,7 @@ def convert_nwb_to_h5(nwbfile):
             array = np.c_[pes.data, pes.confidence]
             cols = pd.MultiIndex.from_product(
                 [[scorer], [animal], [kpt], ["x", "y", "likelihood"]],
+                names=["scorer", "individuals", "bodyparts", "coords"],
             )
             dfs.append(
                 pd.DataFrame(array, np.asarray(pes.timestamps).astype(int), cols)
