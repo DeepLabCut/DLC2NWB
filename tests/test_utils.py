@@ -22,7 +22,8 @@ def test_multi_animal_round_trip_conversion(tmp_path):
     n_animals = 3
     for i in range(1, n_animals + 1):
         temp = utils._ensure_individuals_in_header(
-            pd.read_hdf(FILEPATH), f"animal_{i}",
+            pd.read_hdf(FILEPATH),
+            f"animal_{i}",
         )
         dfs.append(temp)
     df = pd.concat(dfs, axis=1)

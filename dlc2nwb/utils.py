@@ -32,10 +32,7 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
 
     timestamps = np.array(timestamps) / 1000  # Convert to seconds
 
-    if (
-        np.nanvar(np.diff(timestamps))
-        < 1.0 / reader.fps * 1.0 / VARIABILITYBOUND
-    ):
+    if np.nanvar(np.diff(timestamps)) < 1.0 / reader.fps * 1.0 / VARIABILITYBOUND:
         warnings.warn(
             "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
         )
@@ -81,9 +78,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
 
     """
     if "DLC" not in h5file or not h5file.endswith(".h5"):
-        raise IOError(
-            "The file passed in is not a DeepLabCut h5 data file."
-        )
+        raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
     cfg = auxiliaryfunctions.read_config(config)
 
@@ -105,7 +100,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
     if os.path.isfile(metadata_file):
         with open(metadata_file, "rb") as file:
             metadata = pickle.load(file)
-        test_cfg = metadata["data"]['DLC-model-config file']
+        test_cfg = metadata["data"]["DLC-model-config file"]
         paf_graph = test_cfg.get("partaffinityfield_graph", [])
         if paf_graph:
             paf_inds = test_cfg.get("paf_best")
