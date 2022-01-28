@@ -14,7 +14,18 @@ Simply do (it only depends on `ndx-pose` and `deeplabcut`):
 
 `pip install dlc2nwb`
 
-# Example use case:
+# Example within DeepLabCut
+
+DeepLabCut's h5 data files can be readily converted to NWB format either via the GUI from the `Analyze Videos` tab or programmatically, as follows:
+
+```python
+import deeplabcut
+
+deeplabcut.analyze_videos_converth5_to_nwb(config_path, video_folder)
+```
+Note that DLC does not strictly depend on dlc2nwb just yet; if attempting to convert to NWB, a user would be asked to run `pip install dlc2nwb`.
+
+# Example use case of this package (directly):
 
 Here is an example for converting DLC data to NWB format (and back). Notice you can also export your data directly from DeepLabCut. This will be further documented, and is currently in this [branch](https://github.com/DeepLabCut/DeepLabCut/tree/nwb)!
 
