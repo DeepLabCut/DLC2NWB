@@ -1,6 +1,6 @@
 # Welcome to the DeepLabCut 2 Neurodata Without Borders Repo
 
-Here we provide utilities to convert DeepLabCut (DLC) output to/from Neurodata Without Borders (NWB) format. This repository also elaborates a way for how pose estimation data should be represented in NWB.
+Here we provide utilities to convert [DeepLabCut (DLC)](https://github.com/DeepLabCut/DeepLabCut) output to/from [Neurodata Without Borders (NWB) format](https://www.nwb.org/nwb-neurophysiology/). This repository also elaborates a way for how pose estimation data should be represented in NWB.
 
 Specifically, this package allows you to convert DLC's predictions on videos (*.h5 files) into NWB format. This is best explained with an [example](https://github.com/DeepLabCut/DLC2NWB/# Example use case:)!
 
