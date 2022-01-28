@@ -127,7 +127,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
             df.index.tolist()
         )  # setting timestamps to dummy TODO: extract timestamps in DLC?
     else:
-        timestamps = get_movie_timestamps(video)
+        timestamps = get_movie_timestamps(video[0])
 
     output_paths = []
     for animal, df_ in df.groupby(level="individuals", axis=1):
