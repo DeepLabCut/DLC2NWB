@@ -8,7 +8,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="dlc2nwb",
-    version="0.0",
+    version="0.1",
     author="A. & M. Mathis Labs",
     author_email="alexander@deeplabcut.org",
     description="DeepLabCut <-> NWB conversion utilities",
