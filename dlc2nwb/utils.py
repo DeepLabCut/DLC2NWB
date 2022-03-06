@@ -51,11 +51,14 @@ def _ensure_individuals_in_header(df, dummy_name):
     return df
 
 
-def _get_pes_args(config, h5file, individual_name):
+def _get_pes_args(h5file, individual_name, config_file=None, config_dict=None):
     if "DLC" not in h5file or not h5file.endswith(".h5"):
         raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
-    cfg = auxiliaryfunctions.read_config(config)
+    if config_file is not None:
+        cfg = auxiliaryfunctions.read_config(config_file)
+    else:
+        cfg = config_dict
 
     vidname, scorer = os.path.split(h5file)[-1].split("DLC")
     scorer = "DLC" + os.path.splitext(scorer)[0]
@@ -140,7 +143,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
     return nwbfile
 
 
-def write_subject_to_nwb(nwbfile, config, h5file, individual_name):
+def write_subject_to_nwb(nwbfile, h5file, individual_name, config_file=None, config_dict=None):
     """
     Given, subject name, write h5file to an existing nwbfile.
 
@@ -148,20 +151,24 @@ def write_subject_to_nwb(nwbfile, config, h5file, individual_name):
     ----------
     nwbfile: pynwb.NWBFile
         nwbfile to write the subject specific pose estimation series.
-    config : str
-        Path to a project config.yaml file
     h5file : str
         Path to a h5 data file
     individual_name : str
         Name of the subject (whose pose is predicted) for single-animal DLC project.
         For multi-animal projects, the names from the DLC project will be used directly.
+    config_file : str
+        Path to a project config.yaml file
+    config_dict : dict
+        dict containing configuration options. Provide this as alternative to config.yml file.
 
     Returns
     -------
     nwbfile: pynwb.NWBFile
         nwbfile with pes written in the behavior module
     """
-    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(config, h5file, individual_name)
+    assert config_file is not None or config_dict is not None, "provide one of config_file or config_dict"
+    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(h5file, individual_name,
+                                                                  config_file=config_file, config_dict=config_dict)
     df_animal = df.groupby(level="individuals", axis=1).get_group(individual_name)
     return _write_pes_to_nwbfile(nwbfile, individual_name, df_animal, scorer, video, paf_graph, timestamps)
 
