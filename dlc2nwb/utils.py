@@ -51,32 +51,7 @@ def _ensure_individuals_in_header(df, dummy_name):
     return df
 
 
-def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
-    """
-    Convert a DeepLabCut (DLC) video prediction, h5 data file to Neurodata Without Borders (NWB). Also
-    takes project config, to store relevant metadata.
-
-    Parameters
-    ----------
-    config : str
-        Path to a project config.yaml file
-
-    h5file : str
-        Path to a h5 data file
-
-    individual_name : str
-        Name of the subject (whose pose is predicted) for single-animal DLC project.
-        For multi-animal projects, the names from the DLC project will be used directly.
-
-    TODO: allow one to overwrite those names, with a mapping?
-
-    Returns
-    -------
-    list of str
-        List of paths to the newly created NWB data files.
-        By default NWB files are stored in the same folder as the h5file.
-
-    """
+def _get_pes_args(config, h5file, individual_name):
     if "DLC" not in h5file or not h5file.endswith(".h5"):
         raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
@@ -123,37 +98,103 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         )  # setting timestamps to dummy TODO: extract timestamps in DLC?
     else:
         timestamps = get_movie_timestamps(video[0])
+    return scorer, df, video, paf_graph, timestamps, cfg
 
+
+def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, timestamps):
+    pose_estimation_series = []
+    for kpt, xyp in df_animal.groupby(level="bodyparts", axis=1, sort=False):
+        data = xyp.to_numpy()
+
+        pes = PoseEstimationSeries(
+            name=f"{animal}_{kpt}",
+            description=f"Keypoint {kpt} from individual {animal}.",
+            data=data[:, :2],
+            unit="pixels",
+            reference_frame="(0,0) corresponds to the bottom left corner of the video.",
+            timestamps=timestamps,
+            confidence=data[:, 2],
+            confidence_definition="Softmax output of the deep neural network.",
+        )
+        pose_estimation_series.append(pes)
+
+    pe = PoseEstimation(
+        pose_estimation_series=pose_estimation_series,
+        description="2D keypoint coordinates estimated using DeepLabCut.",
+        original_videos=[video[0]],
+        # TODO check if this is a mandatory arg in ndx-pose (can skip if video is not found_
+        dimensions=[list(map(int, video[1].split(",")))[1::2]],
+        scorer=scorer,
+        source_software="DeepLabCut",
+        source_software_version=__version__,
+        nodes=[pes.name for pes in pose_estimation_series],
+        edges=paf_graph,
+    )
+    if 'behavior' in nwbfile.processing:
+        behavior_pm = nwbfile.processing["behavior"]
+    else:
+        behavior_pm = nwbfile.create_processing_module(
+            name="behavior", description="processed behavioral data"
+        )
+    behavior_pm.add(pe)
+    return nwbfile
+
+
+def write_subject_to_nwb(nwbfile, config, h5file, individual_name):
+    """
+    Given, subject name, write h5file to an existing nwbfile.
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+        nwbfile to write the subject specific pose estimation series.
+    config : str
+        Path to a project config.yaml file
+    h5file : str
+        Path to a h5 data file
+    individual_name : str
+        Name of the subject (whose pose is predicted) for single-animal DLC project.
+        For multi-animal projects, the names from the DLC project will be used directly.
+
+    Returns
+    -------
+    nwbfile: pynwb.NWBFile
+        nwbfile with pes written in the behavior module
+    """
+    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(config, h5file, individual_name)
+    df_animal = df.groupby(level="individuals", axis=1).get_group(individual_name)
+    return _write_pes_to_nwbfile(nwbfile, individual_name, df_animal, scorer, video, paf_graph, timestamps)
+
+
+def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
+    """
+    Convert a DeepLabCut (DLC) video prediction, h5 data file to Neurodata Without Borders (NWB). Also
+    takes project config, to store relevant metadata.
+
+    Parameters
+    ----------
+    config : str
+        Path to a project config.yaml file
+
+    h5file : str
+        Path to a h5 data file
+
+    individual_name : str
+        Name of the subject (whose pose is predicted) for single-animal DLC project.
+        For multi-animal projects, the names from the DLC project will be used directly.
+
+    TODO: allow one to overwrite those names, with a mapping?
+
+    Returns
+    -------
+    list of str
+        List of paths to the newly created NWB data files.
+        By default NWB files are stored in the same folder as the h5file.
+
+    """
+    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(config, h5file, individual_name)
     output_paths = []
     for animal, df_ in df.groupby(level="individuals", axis=1):
-        pose_estimation_series = []
-        for kpt, xyp in df_.groupby(level="bodyparts", axis=1, sort=False):
-            data = xyp.to_numpy()
-
-            pes = PoseEstimationSeries(
-                name=f"{animal}_{kpt}",
-                description=f"Keypoint {kpt} from individual {animal}.",
-                data=data[:, :2],
-                unit="pixels",
-                reference_frame="(0,0) corresponds to the bottom left corner of the video.",
-                timestamps=timestamps,
-                confidence=data[:, 2],
-                confidence_definition="Softmax output of the deep neural network.",
-            )
-            pose_estimation_series.append(pes)
-
-        pe = PoseEstimation(
-            pose_estimation_series=pose_estimation_series,
-            description="2D keypoint coordinates estimated using DeepLabCut.",
-            original_videos=[video[0]],
-            dimensions=[list(map(int, video[1].split(",")))[1::2]],
-            scorer=scorer,
-            source_software="DeepLabCut",
-            source_software_version=__version__,
-            nodes=[pes.name for pes in pose_estimation_series],
-            edges=paf_graph,
-        )
-
         nwbfile = NWBFile(
             session_description=cfg["Task"],
             experimenter=cfg["scorer"],
@@ -162,10 +203,7 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         )
 
         # TODO Store the test_pose_config as well?
-        behavior_pm = nwbfile.create_processing_module(
-            name="behavior", description="processed behavioral data"
-        )
-        behavior_pm.add(pe)
+        nwbfile = _write_pes_to_nwbfile(nwbfile, animal, df_, scorer, video, paf_graph, timestamps)
         output_path = h5file.replace(".h5", f"_{animal}.nwb")
         with warnings.catch_warnings(), NWBHDF5IO(output_path, mode="w") as io:
             warnings.filterwarnings("ignore", category=DtypeConversionWarning)
