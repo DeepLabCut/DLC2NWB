@@ -37,6 +37,12 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
             "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
         )
 
+    if all(timestamps[-3:] == 0):
+        # Infers times when OpenCV bug provides 0s for last 3 frames
+        avg_frame_diff = np.mean(np.diff(timestamps[:-3])) # avg diff for usable frames
+        inferred_times = range(1, 4) * avg_frame_diff + timestamps[-4]
+        timestamps = np.concatenate((timestamps[:-3], inferred_times), axis=0)
+
     return timestamps
 
 
@@ -128,7 +134,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
         source_software="DeepLabCut",
         source_software_version=__version__,
         nodes=[pes.name for pes in pose_estimation_series],
-        edges=paf_graph,
+        edges=paf_graph if paf_graph else None,
     )
     if 'behavior' in nwbfile.processing:
         behavior_pm = nwbfile.processing["behavior"]
