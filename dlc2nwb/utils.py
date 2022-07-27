@@ -51,7 +51,7 @@ def _ensure_individuals_in_header(df, dummy_name):
     return df
 
 
-def _get_pes_args(h5file, individual_name, config_file):
+def _get_pes_args(config_file, h5file, individual_name):
     if "DLC" not in h5file or not h5file.endswith(".h5"):
         raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
