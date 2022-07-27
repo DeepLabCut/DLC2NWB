@@ -163,7 +163,7 @@ def write_subject_to_nwb(nwbfile, h5file, individual_name, config_file):
     nwbfile: pynwb.NWBFile
         nwbfile with pes written in the behavior module
     """
-    scorer, df, video, paf_graph, timestamps, _ = _get_pes_args(h5file, individual_name, config_file)
+    scorer, df, video, paf_graph, timestamps, _ = _get_pes_args(config_file, h5file, individual_name)
     df_animal = df.groupby(level="individuals", axis=1).get_group(individual_name)
     return _write_pes_to_nwbfile(nwbfile, individual_name, df_animal, scorer, video, paf_graph, timestamps)
 
