@@ -1,16 +1,54 @@
 import cv2
 import datetime
 import os
+from pathlib import Path
 import numpy as np
 import pandas as pd
 import pickle
 import warnings
-from deeplabcut import __version__
-from deeplabcut.utils import auxiliaryfunctions
-from deeplabcut.utils.auxfun_videos import VideoReader
 from hdmf.build.warnings import DtypeConversionWarning
 from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
+import yaml
+from ruamel.yaml import YAML
+
+# If available determine version
+try:
+    from deeplabcut import __version__
+    deeplabcut_version = __version__ 
+except:
+    deeplabcut_version = None
+
+def read_config(configname):
+    """
+    Reads structured config file defining a project.
+    """
+    ruamelFile = YAML()
+    path = Path(configname)
+    if os.path.exists(path):
+        try:
+            with open(path, "r") as f:
+                cfg = ruamelFile.load(f)
+                curr_dir = os.path.dirname(configname)
+                if cfg["project_path"] != curr_dir:
+                    cfg["project_path"] = curr_dir
+        except Exception as err:
+            if len(err.args) > 2:
+                if (
+                    err.args[2]
+                    == "could not determine a constructor for the tag '!!python/tuple'"
+                ):
+                    with open(path, "r") as ymlfile:
+                        cfg = yaml.load(ymlfile, Loader=yaml.SafeLoader)
+                else:
+                    raise
+
+    else:
+        raise FileNotFoundError(
+            "Config file is not found. Please make sure that the file exists and/or that you passed the path of the config file correctly!"
+        )
+    return cfg
+
 
 
 def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
@@ -24,7 +62,7 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
     """
     # TODO: consider moving this to DLC, and actually extract alongside video analysis!
 
-    reader = VideoReader(movie_file)
+    reader = cv2.VideoCapture(movie_file)
     timestamps = []
     for _ in range(len(reader)):
         _ = reader.read_frame()
@@ -55,7 +93,7 @@ def _get_pes_args(config_file, h5file, individual_name):
     if "DLC" not in h5file or not h5file.endswith(".h5"):
         raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
-    cfg = auxiliaryfunctions.read_config(config_file)
+    cfg = read_config(config_file)
 
     vidname, scorer = os.path.split(h5file)[-1].split("DLC")
     scorer = "DLC" + os.path.splitext(scorer)[0]
@@ -117,7 +155,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
             confidence_definition="Softmax output of the deep neural network.",
         )
         pose_estimation_series.append(pes)
-
+    
     pe = PoseEstimation(
         pose_estimation_series=pose_estimation_series,
         description="2D keypoint coordinates estimated using DeepLabCut.",
@@ -126,7 +164,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
         dimensions=[list(map(int, video[1].split(",")))[1::2]],
         scorer=scorer,
         source_software="DeepLabCut",
-        source_software_version=__version__,
+        source_software_version=deeplabcut_version,
         nodes=[pes.name for pes in pose_estimation_series],
         edges=paf_graph,
     )

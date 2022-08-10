@@ -16,7 +16,6 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/DeepLabCut/DLC2NWB",
     install_requires=[
-        "deeplabcut>=2.2.0.5",
         "ndx-pose>=0.1.1",
     ],
     classifiers=(
