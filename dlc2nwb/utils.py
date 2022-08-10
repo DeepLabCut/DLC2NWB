@@ -65,8 +65,8 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
     reader = cv2.VideoCapture(movie_file)
     timestamps = []
     for _ in range(len(reader)):
-        _ = reader.read_frame()
-        timestamps.append(reader.video.get(cv2.CAP_PROP_POS_MSEC))
+        _ = reader.read()
+        timestamps.append(reader.get(cv2.CAP_PROP_POS_MSEC))
 
     timestamps = np.array(timestamps) / 1000  # Convert to seconds
 
