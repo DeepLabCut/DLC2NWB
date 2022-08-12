@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from dlc2nwb import utils
-
+import deeplabcut.utils 
 
 FILEPATH = "examples/m3v1mp4DLC_resnet50_openfieldAug20shuffle1_30000.h5"
 CONFIGPATH = "examples/config.yaml"
@@ -31,3 +31,11 @@ def test_multi_animal_round_trip_conversion(tmp_path):
     df.to_hdf(path_fake_df, key="fake")
     nwbfiles = utils.convert_h5_to_nwb(CONFIGPATH, path_fake_df)
     assert len(nwbfiles) == n_animals
+
+
+def test_read_config_compability():
+    """This test ensures that the read_config function in this repo stays on synch with the one in deeplabcut"""    
+    config = utils.read_config(CONFIGPATH)
+    config_from_deep_lab_cut = deeplabcut.utils.auxiliaryfunctions.read_config(CONFIGPATH)
+    
+    assert config == config_from_deep_lab_cut
