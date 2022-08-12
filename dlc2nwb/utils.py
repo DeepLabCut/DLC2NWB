@@ -16,7 +16,7 @@ from ruamel.yaml import YAML
 try:
     from deeplabcut import __version__
     deeplabcut_version = __version__ 
-except:
+except ModuleNotFoundError:
     deeplabcut_version = None
 
 def read_config(configname):
