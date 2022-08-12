@@ -14,7 +14,7 @@ def test_round_trip_conversion():
         FILEPATH,
     )[0]
     df = utils.convert_nwb_to_h5(nwbfile).droplevel("individuals", axis=1)
-    pd.testing.assert_frame_equal(df[:-3], df_ref[:-3])  # drop 3 OpenCV bug frames
+    pd.testing.assert_frame_equal(df, df_ref)
 
 
 def test_multi_animal_round_trip_conversion(tmp_path):

@@ -37,11 +37,18 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
             "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
         )
 
-    if all(timestamps[-3:] == 0):
-        # Infers times when OpenCV bug provides 0s for last 3 frames
-        avg_frame_diff = np.mean(np.diff(timestamps[:-3])) # avg diff for usable frames
-        inferred_times = range(1, 4) * avg_frame_diff + timestamps[-4]
-        timestamps = np.concatenate((timestamps[:-3], inferred_times), axis=0)
+    if any(timestamps[1:] == 0):
+        # Infers times when OpenCV bug provides 0s 
+        warnings.warn( # warns user of percent of 0 frames
+            "Replacing cv2 timestamps set to 0: %f%%"
+            % (np.count_nonzero(timestamps == 0) / len(timestamps) * 100)
+        )
+        timestamps[timestamps == 0] = np.nan            # replace 0s with nan
+        timestamps[np.isnan(timestamps)] = np.interp(   # interpolate nans
+            np.isnan(timestamps).nonzero()[0],          # nans idx to replace
+            (~np.isnan(timestamps)).nonzero()[0],       # good idx to keep
+            timestamps[(~np.isnan(timestamps))],        # good timestamps
+        )
 
     return timestamps
 
