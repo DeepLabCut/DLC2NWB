@@ -41,19 +41,28 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000, infer_timestamps=Tru
         # Infers times when OpenCV provides 0s
         warning_msg = "Removing"
         timestamp_zero_count = np.count_nonzero(timestamps == 0)
-        timestamps[timestamps == 0] = np.nan                # replace 0s with nan
+        timestamps[timestamps == 0] = np.nan # replace 0s with nan
+
         if infer_timestamps:
             warning_msg = "Replacing"
-            timestamps[np.isnan(timestamps)] = (            # replace nans w/ 
-                np.isnan(timestamps).nonzero()[0]           # nans idx multiplied by
-                * np.mean(np.diff(                          # average frame difference
-                    timestamps[~np.isnan(timestamps)])      # (approx equal 1/fps)
-                )
-            )
+            timestamps = _infer_nan_timestamps(timestamps)
+
         warnings.warn( # warns user of percent of 0 frames
             "%s cv2 timestamps returned as 0: %f%%"
             % (warning_msg, ( timestamp_zero_count / len(timestamps) * 100))
         )
+
+    return timestamps
+
+
+def _infer_nan_timestamps(timestamps):
+    """Given np.array, interpolate nan values using index * sampling rate"""
+    bad_timestamps_mask = np.isnan(timestamps)
+    bad_timestamps_indexes = np.argwhere(bad_timestamps_mask)[:, 0]
+    estimated_sampling_rate = np.mean(np.diff(timestamps[~bad_timestamps_mask]))
+    inferred_timestamps = bad_timestamps_indexes * estimated_sampling_rate
+
+    timestamps[bad_timestamps_mask] = inferred_timestamps
 
     return timestamps
 
