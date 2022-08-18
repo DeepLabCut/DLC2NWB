@@ -137,7 +137,9 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
         if exclude_nans: 
             # exclude_nans is inverse infer_timestamps. if not infer, there may be nans
             data = data[~np.isnan(timestamps)]
-            timestamps_cleaned = timestamps[~np.isnan(timestamps)]
+            timestamps_cleaned = timestamps[~np.isnan(timestamps)] 
+        else:
+            timestamps_cleaned = timestamps
 
         pes = PoseEstimationSeries(
             name=f"{animal}_{kpt}",
