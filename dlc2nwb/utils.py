@@ -58,16 +58,18 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000, infer_timestamps=Tru
 def _infer_nan_timestamps(timestamps):
     """Given np.array, interpolate nan values using index * sampling rate"""
     bad_timestamps_mask = np.isnan(timestamps)
-
-    good_run_indices = np.where(  # Runs of good timestamps
+    # Runs of good timestamps
+    good_run_indices = np.where( 
         np.diff(np.hstack(([False], bad_timestamps_mask == False, [False])))
     )[0].reshape(-1, 2)
-    longest_good_seq = good_run_indices[np.diff(good_run_indices, axis=1).argmax()]
-    # Use the longest sequence of good timestamps to get the sampling rate
-    estimated_sampling_rate = np.mean(
-        np.diff(timestamps[longest_good_seq[0] : longest_good_seq[1]])
-    )
-
+    
+    # For each good run, get the diff and append to cumulative array
+    sampling_diffs = np.array([])
+    for idx in good_run_indices: 
+        sampling_diffs = np.append(sampling_diffs, np.diff(timestamps[idx[0]:idx[1]]))
+    estimated_sampling_rate = np.mean(sampling_diffs) # Average over diffs
+    
+    # Infer timestamps with avg sampling rate
     bad_timestamps_indexes = np.argwhere(bad_timestamps_mask)[:, 0]
     inferred_timestamps = bad_timestamps_indexes * estimated_sampling_rate
     timestamps[bad_timestamps_mask] = inferred_timestamps
