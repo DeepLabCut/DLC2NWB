@@ -41,7 +41,7 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000, infer_timestamps=Tru
         # Infers times when OpenCV provides 0s
         warning_msg = "Removing"
         timestamp_zero_count = np.count_nonzero(timestamps == 0)
-        timestamps[timestamps == 0] = np.nan # replace 0s with nan
+        timestamps[1:][timestamps[1:] == 0] = np.nan # replace 0s with nan
 
         if infer_timestamps:
             warning_msg = "Replacing"
@@ -58,10 +58,18 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000, infer_timestamps=Tru
 def _infer_nan_timestamps(timestamps):
     """Given np.array, interpolate nan values using index * sampling rate"""
     bad_timestamps_mask = np.isnan(timestamps)
-    bad_timestamps_indexes = np.argwhere(bad_timestamps_mask)[:, 0]
-    estimated_sampling_rate = np.mean(np.diff(timestamps[~bad_timestamps_mask]))
-    inferred_timestamps = bad_timestamps_indexes * estimated_sampling_rate
 
+    good_run_indices = np.where(  # Runs of good timestamps
+        np.diff(np.hstack(([False], bad_timestamps_mask == False, [False])))
+    )[0].reshape(-1, 2)
+    longest_good_seq = good_run_indices[np.diff(good_run_indices, axis=1).argmax()]
+    # Use the longest sequence of good timestamps to get the sampling rate
+    estimated_sampling_rate = np.mean(
+        np.diff(timestamps[longest_good_seq[0] : longest_good_seq[1]])
+    )
+
+    bad_timestamps_indexes = np.argwhere(bad_timestamps_mask)[:, 0]
+    inferred_timestamps = bad_timestamps_indexes * estimated_sampling_rate
     timestamps[bad_timestamps_mask] = inferred_timestamps
 
     return timestamps
