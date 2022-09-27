@@ -51,7 +51,7 @@ def read_config(configname):
 
 
 
-def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
+def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000, infer_timestamps=True):
     """
     Return numpy array of the timestamps for a video.
 
@@ -75,6 +75,43 @@ def get_movie_timestamps(movie_file, VARIABILITYBOUND=1000):
             "Variability of timestamps suspiciously small. See: https://github.com/DeepLabCut/DLC2NWB/issues/1"
         )
 
+    if any(timestamps[1:] == 0):
+        # Infers times when OpenCV provides 0s
+        warning_msg = "Removing"
+        timestamp_zero_count = np.count_nonzero(timestamps == 0)
+        timestamps[1:][timestamps[1:] == 0] = np.nan # replace 0s with nan
+
+        if infer_timestamps:
+            warning_msg = "Replacing"
+            timestamps = _infer_nan_timestamps(timestamps)
+
+        warnings.warn( # warns user of percent of 0 frames
+            "%s cv2 timestamps returned as 0: %f%%"
+            % (warning_msg, ( timestamp_zero_count / len(timestamps) * 100))
+        )
+
+    return timestamps
+
+
+def _infer_nan_timestamps(timestamps):
+    """Given np.array, interpolate nan values using index * sampling rate"""
+    bad_timestamps_mask = np.isnan(timestamps)
+    # Runs of good timestamps
+    good_run_indices = np.where( 
+        np.diff(np.hstack(([False], bad_timestamps_mask == False, [False])))
+    )[0].reshape(-1, 2)
+    
+    # For each good run, get the diff and append to cumulative array
+    sampling_diffs = np.array([])
+    for idx in good_run_indices: 
+        sampling_diffs = np.append(sampling_diffs, np.diff(timestamps[idx[0]:idx[1]]))
+    estimated_sampling_rate = np.mean(sampling_diffs) # Average over diffs
+    
+    # Infer timestamps with avg sampling rate
+    bad_timestamps_indexes = np.argwhere(bad_timestamps_mask)[:, 0]
+    inferred_timestamps = bad_timestamps_indexes * estimated_sampling_rate
+    timestamps[bad_timestamps_mask] = inferred_timestamps
+
     return timestamps
 
 
@@ -89,7 +126,7 @@ def _ensure_individuals_in_header(df, dummy_name):
     return df
 
 
-def _get_pes_args(config_file, h5file, individual_name):
+def _get_pes_args(config_file, h5file, individual_name, infer_timestamps=True):
     if "DLC" not in h5file or not h5file.endswith(".h5"):
         raise IOError("The file passed in is not a DeepLabCut h5 data file.")
 
@@ -135,14 +172,22 @@ def _get_pes_args(config_file, h5file, individual_name):
             df.index.tolist()
         )  # setting timestamps to dummy TODO: extract timestamps in DLC?
     else:
-        timestamps = get_movie_timestamps(video[0])
+        timestamps = get_movie_timestamps(video[0], infer_timestamps=infer_timestamps)
     return scorer, df, video, paf_graph, timestamps, cfg
 
 
-def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, timestamps):
+def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, timestamps,
+                          exclude_nans):
     pose_estimation_series = []
     for kpt, xyp in df_animal.groupby(level="bodyparts", axis=1, sort=False):
         data = xyp.to_numpy()
+
+        if exclude_nans: 
+            # exclude_nans is inverse infer_timestamps. if not infer, there may be nans
+            data = data[~np.isnan(timestamps)]
+            timestamps_cleaned = timestamps[~np.isnan(timestamps)] 
+        else:
+            timestamps_cleaned = timestamps
 
         pes = PoseEstimationSeries(
             name=f"{animal}_{kpt}",
@@ -150,7 +195,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
             data=data[:, :2],
             unit="pixels",
             reference_frame="(0,0) corresponds to the bottom left corner of the video.",
-            timestamps=timestamps,
+            timestamps=timestamps_cleaned,
             confidence=data[:, 2],
             confidence_definition="Softmax output of the deep neural network.",
         )
@@ -166,7 +211,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
         source_software="DeepLabCut",
         source_software_version=deeplabcut_version,
         nodes=[pes.name for pes in pose_estimation_series],
-        edges=paf_graph,
+        edges=paf_graph if paf_graph else None,
     )
     if 'behavior' in nwbfile.processing:
         behavior_pm = nwbfile.processing["behavior"]
@@ -206,7 +251,7 @@ def write_subject_to_nwb(nwbfile, h5file, individual_name, config_file):
     return _write_pes_to_nwbfile(nwbfile, individual_name, df_animal, scorer, video, paf_graph, timestamps)
 
 
-def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
+def convert_h5_to_nwb(config, h5file, individual_name="ind1", infer_timestamps=True):
     """
     Convert a DeepLabCut (DLC) video prediction, h5 data file to Neurodata Without Borders (NWB). Also
     takes project config, to store relevant metadata.
@@ -223,6 +268,10 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         Name of the subject (whose pose is predicted) for single-animal DLC project.
         For multi-animal projects, the names from the DLC project will be used directly.
 
+    infer_timestamps : bool
+        Default True. Uses framerate to infer the timestamps returned as 0 from OpenCV.
+        If False, exclude these frames from resulting NWB file.
+
     TODO: allow one to overwrite those names, with a mapping?
 
     Returns
@@ -232,7 +281,8 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         By default NWB files are stored in the same folder as the h5file.
 
     """
-    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(config, h5file, individual_name)
+    scorer, df, video, paf_graph, timestamps, cfg = _get_pes_args(config, h5file, individual_name, 
+                                                                  infer_timestamps=infer_timestamps)
     output_paths = []
     for animal, df_ in df.groupby(level="individuals", axis=1):
         nwbfile = NWBFile(
@@ -243,7 +293,8 @@ def convert_h5_to_nwb(config, h5file, individual_name="ind1"):
         )
 
         # TODO Store the test_pose_config as well?
-        nwbfile = _write_pes_to_nwbfile(nwbfile, animal, df_, scorer, video, paf_graph, timestamps)
+        nwbfile = _write_pes_to_nwbfile(nwbfile, animal, df_, scorer, video, paf_graph, timestamps,
+                                        exclude_nans=(not infer_timestamps))
         output_path = h5file.replace(".h5", f"_{animal}.nwb")
         with warnings.catch_warnings(), NWBHDF5IO(output_path, mode="w") as io:
             warnings.filterwarnings("ignore", category=DtypeConversionWarning)
