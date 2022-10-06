@@ -27,7 +27,7 @@ Note that DLC does not strictly depend on dlc2nwb just yet; if attempting to con
 
 # Example use case of this package (directly):
 
-Here is an example for converting DLC data to NWB format (and back). Notice you can also export your data directly from DeepLabCut. This will be further documented, and is currently in this [branch](https://github.com/DeepLabCut/DeepLabCut/tree/nwb)!
+Here is an example for converting DLC data to NWB format (and back). Notice you can also export your data directly from DeepLabCut.
 
 ```
 from dlc2nwb.utils import convert_h5_to_nwb, convert_nwb_to_h5
