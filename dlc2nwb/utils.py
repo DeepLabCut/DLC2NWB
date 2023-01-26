@@ -1,23 +1,33 @@
-import cv2
 import datetime
 import os
-from pathlib import Path
-import numpy as np
-import pandas as pd
 import pickle
 import warnings
+from pathlib import Path
+from platform import python_version
+
+import cv2
+import yaml
+import numpy as np
+import pandas as pd
 from hdmf.build.warnings import DtypeConversionWarning
+from packaging.version import Version  # Installed with setuptools
 from pynwb import NWBFile, NWBHDF5IO
 from ndx_pose import PoseEstimationSeries, PoseEstimation
-import yaml
 from ruamel.yaml import YAML
 
 # If available determine version
 try:
-    from deeplabcut import __version__
-    deeplabcut_version = __version__ 
+    if Version(python_version()) >= Version("3.8"):
+        from importlib.metadata import version as get_package_version  # Only available in Python>=3.8
+
+        deeplabcut_version = get_package_version("deeplabcut")
+    else:
+        from pkg_resources import get_distribution  # Installed with setuptools
+
+        deeplabcut_version = get_distribution("deeplabcut").version
 except ModuleNotFoundError:
     deeplabcut_version = None
+
 
 def read_config(configname):
     """
@@ -176,8 +186,16 @@ def _get_pes_args(config_file, h5file, individual_name, infer_timestamps=True):
     return scorer, df, video, paf_graph, timestamps, cfg
 
 
-def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, timestamps,
-                          exclude_nans):
+def _write_pes_to_nwbfile(
+    nwbfile,
+    animal,
+    df_animal,
+    scorer,
+    video,  # Expects this to be a tuple; first index is string path, second is the image shape as "0, width, 0, height"
+    paf_graph,
+    timestamps,
+    exclude_nans,
+):  
     pose_estimation_series = []
     for kpt, xyp in df_animal.groupby(level="bodyparts", axis=1, sort=False):
         data = xyp.to_numpy()
@@ -200,7 +218,7 @@ def _write_pes_to_nwbfile(nwbfile, animal, df_animal, scorer, video, paf_graph, 
             confidence_definition="Softmax output of the deep neural network.",
         )
         pose_estimation_series.append(pes)
-    
+
     pe = PoseEstimation(
         pose_estimation_series=pose_estimation_series,
         description="2D keypoint coordinates estimated using DeepLabCut.",
