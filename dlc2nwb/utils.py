@@ -191,7 +191,7 @@ def _write_pes_to_nwbfile(
     animal,
     df_animal,
     scorer,
-    video,  # Excepts this to be a tuple; first index is string path, second is the image shape like "640, 480"
+    video,  # Expects this to be a tuple; first index is string path, second is the image shape like "640, 480"
     paf_graph,
     timestamps,
     exclude_nans,
